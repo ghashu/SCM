@@ -1,4 +1,4 @@
-#Rating Prediction using SVM
+#Rating Prediction using SVM-RBF
 import pymysql
 import time
 import pandas as pd
@@ -15,8 +15,8 @@ from sklearn.metrics import matthews_corrcoef
 from sklearn.decomposition import PCA
 
 def classifySCM():
-    datasetFile=pd.read_csv("InputTrain.dat", sep=',',header=None)#'TfIdf','Bigram',
-    datasetFile.columns=['Rate','TfIdf','NgramProb','F1','F2','F3','F4','F5','F6','F7','F8','F9','F10','F11','F12']
+    datasetFile=pd.read_csv("InputTrain.dat", sep=',',header=None)
+    datasetFile.columns=['Rate','TfIdf','BigramProb','F1','F2','F3','F4','F5','F6','F7','F8','F9','F10','F11','F12']
     df = pd.DataFrame(datasetFile)
     datasetArray=df.values
     #Features and Label
@@ -62,11 +62,11 @@ def classifySCM():
     zarray=np.array([expected,predicted])
     zarray=zarray.T
     print(metrics.classification_report(expected, predicted))
-    with open("ValidationResult.dat","wb") as f:
+    with open("ValResult.dat","wb") as f:
         np.savetxt(f,zarray,fmt=['%2.2f','%2.2f'])
     #Testing the model on Test dataset
-    datasetTestFile = pd.read_csv("InputTest.dat", sep=',', header=None)#'TfIdf', 'Bigram',
-    datasetTestFile.columns = ['SvcEngname','Competence','TfIdf','NgramProb','F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7',
+    datasetTestFile = pd.read_csv("InputTest.dat", sep=',', header=None)
+    datasetTestFile.columns = ['Engname','Comp','TfIdf','BigramProb','F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7',
                                'F8', 'F9', 'F10','F11', 'F12']
     dfTest = pd.DataFrame(datasetTestFile)
     testDatasetArray = dfTest.values
@@ -85,26 +85,26 @@ def classifySCM():
     dfTest['PredictedRating']=predicted_test
     dfTest.to_csv("SVMTestResult.dat",sep=',',header=None)
     #Load data to database table-svmengratingnogcd
-    conn = create_engine('mysql+mysqlconnector://root:scm7019@localhost:3306/scmpred', echo=False)
-    #conn = pymysql.connect(host='localhost', user='root', passwd='scm7019', db='scmpred')-'TfIdf', 'Bigram',
-    conn.execute("use scmpred;")
+    conn = create_engine('mysql+mysqlconnector://root:scm@localhost:3306/scm', echo=False)
+   
+    conn.execute("use scm;")
     conn.execute("SET SQL_SAFE_UPDATES=0;")
-    conn.execute("delete from svmengratingnogcd;")
-    conn.execute('ALTER TABLE svmengratingnogcd AUTO_INCREMENT = 1;')
-    dfTest.columns=['SvcEngname','Competence','TfIdf','NgramProb','Feature1', 'Feature2', 'Feature3', 'Feature4', 'Feature5',
+    conn.execute("delete from svmengratingng;")
+    conn.execute('ALTER TABLE svmengratingng AUTO_INCREMENT = 1;')
+    dfTest.columns=['Engname','Comp','TfIdf','NgramProb','Feature1', 'Feature2', 'Feature3', 'Feature4', 'Feature5',
                     'Feature6', 'Feature7','Feature8', 'Feature9', 'Feature10','Feature11', 'Feature12','PredRating']
-    dfTest.to_sql(con=conn, name='svmengratingnogcd',if_exists='append',index=False)
+    dfTest.to_sql(con=conn, name='svmengratingng',if_exists='append',index=False)
 
 def loadTrainData():
     #Connect to database
-    conn = pymysql.connect(host='localhost', user='root', passwd='scm7019', db='scmpred')
+    conn = pymysql.connect(host='localhost', user='root', passwd='root', db='scm')
     cursor = conn.cursor()
-    #Execute SQL to store Training Data-A.TfIdf,A.NgramProb,
+    #Execute SQL to store Training Data-A.TfIdf,A.BigramProb,
     cursor.execute(
         "select A.ActualLevel,A.TfIdf,A.NgramProb,B.Feature1,B.Feature2,B.Feature3,B.Feature4,B.Feature5,B.Feature6,"
         "B.Feature7,B.Feature8,B.Feature9,B.Feature10,B.Feature11,B.Feature12 "
-        "from gcdrptcommontfidf A inner join gcdcmnfeatureweight B "
-        "on A.SvcEngname=B.SvcEngname and A.Competence=B.Competence  where "
+        "from grptcommontfidf A inner join gcmnfeatureweight B "
+        "on A.Engname=B.Engname and A.Comp=B.Comp  where "
         "B.Feature1 <> 0.00 or B.Feature2 <> 0.00 or B.Feature3 <> 0.00 or B.Feature4 <> 0.00 or B.Feature5 <> 0.00 or "
         "B.Feature6 <> 0.00 or B.Feature7 <> 0.00 or B.Feature8 <> 0.00 or B.Feature9 <> 0.00 or B.Feature10 <> 0.00 or "
         "B.Feature11 <> 0.00 or B.Feature12 <> 0.00 order by A.ActualLevel desc;")
@@ -123,13 +123,12 @@ def loadTrainData():
     conn.close()
 
 def loadTestData():
-    conn = pymysql.connect(host='localhost', user='root', passwd='scm7019', db='scmpred')
+    conn = pymysql.connect(host='localhost', user='root', passwd='root', db='scm')
     cursor = conn.cursor()
     cursor.execute(
-        "select A.SvcEngname,A.Competence,A.TfIdf,A.NgramProb,B.Feature1,B.Feature2,B.Feature3,B.Feature4,B.Feature5,"
+        "select A.Engname,A.Comp,A.TfIdf,A.NgramProb,B.Feature1,B.Feature2,B.Feature3,B.Feature4,B.Feature5,"
         "B.Feature6,B.Feature7,B.Feature8,B.Feature9,B.Feature10,B.Feature11,B.Feature12 "
-        "from comptfidf A inner join gcdnotcmnfeatureweight B "
-        "on A.SvcEngname=B.SvcEngname and A.Competence=B.Competence where "
+        "from comptfidf A inner join gnotcmnfeatureweight B "
         "A.TfIdf <> 0.00 or A.NgramProb <> 0.00 or "
         "B.Feature1 <> 0.00 or B.Feature2 <> 0.00 or B.Feature3 <> 0.00 or B.Feature4 <> 0.00 or B.Feature5 <> 0.00 or "
         "B.Feature6 <> 0.00 or B.Feature7 <> 0.00 or B.Feature8 <> 0.00 or B.Feature9 <> 0.00 or B.Feature10 <> 0.00 or "
@@ -149,14 +148,14 @@ def loadTestData():
     conn.close()
 
 def loadPredictedRating():
-    conn = pymysql.connect(host='localhost', user='root', passwd='scm7019', db='scmpred')
+    conn = pymysql.connect(host='localhost', user='root', passwd='root', db='scm')
     cursor = conn.cursor()
-    cursor.execute("use scmpred;")
+    cursor.execute("use scm;")
     cursor.execute("SET SQL_SAFE_UPDATES=0;")
     cursor.execute("delete from svmcomparerating;")
     cursor.execute(
-        "insert into svmcomparerating(select A.RowNo,A.SvcEngname,A.competence,B.Rating,A.predrating "
-        "from svmengratingnogcd A join gcdrptnotcommoneng B on A.SvcEngname=B.SvcEngname and trim(A.Competence)= trim(B.Competence));"
+        "insert into svmcomparerating(select A.RowNo,A.Engname,A.competence,B.Rating,A.predrating "
+        "from svmengratingng A join grptnotcommoneng B on A.Engname=B.Engname and trim(A.Comp)= trim(B.Comp));"
     )
     conn.commit()
     conn.close()
